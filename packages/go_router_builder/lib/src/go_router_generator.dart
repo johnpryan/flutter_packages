@@ -82,5 +82,5 @@ ${getters.map((String e) => "$e,").join('\n')}
 }
 
 const TypeChecker _goRouteDataChecker = TypeChecker.fromUrl(
-  'package:go_router/src/route_data.dart#GoRouteData',
+  'package:go_router/src/route_data.dart#RouteData',
 );

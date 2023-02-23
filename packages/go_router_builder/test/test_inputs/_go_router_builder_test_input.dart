@@ -170,3 +170,12 @@ class NullableDefaultValueRoute extends GoRouteData {
   NullableDefaultValueRoute({this.param = 0});
   final int? param;
 }
+
+// @ShouldGenerate(
+// r'''
+// extension $TestShellRouteExtension on TestShellRoute {
+//   static TestShellRoute _fromState(GoRouterState state) => TestShellRoute();
+// }
+// ''')
+// @TypedShellRoute()
+// class TestShellRoute extends ShellRouteData {}
