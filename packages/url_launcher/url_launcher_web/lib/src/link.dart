@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import 'dart:async';
-import 'dart:html' as html;
+import 'dart:js_interop';
 import 'dart:js_util';
 
 import 'package:flutter/foundation.dart';
@@ -13,6 +13,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart' show urlStrategy;
 import 'package:url_launcher_platform_interface/link.dart';
+import 'package:web/web.dart' as web;
 
 /// The unique identifier for the view type to be used for link platform views.
 const String linkViewType = '__url_launcher::link';
@@ -21,7 +22,7 @@ const String linkViewType = '__url_launcher::link';
 const String linkViewIdProperty = '__url_launcher::link::viewId';
 
 /// Signature for a function that takes a unique [id] and creates an HTML element.
-typedef HtmlViewFactory = html.Element Function(int viewId);
+typedef HtmlViewFactory = web.Element Function(int viewId);
 
 /// Factory that returns the link DOM element for each unique view id.
 HtmlViewFactory get linkViewFactory => LinkViewController._viewFactory;
@@ -104,7 +105,7 @@ class LinkViewController extends PlatformViewController {
     if (_instances.isEmpty) {
       // This is the first controller being created, attach the global click
       // listener.
-      _clickSubscription = html.window.onClick.listen(_onGlobalClick);
+      web.window.onclick = _onGlobalClick.toJS;
     }
     _instances[viewId] = this;
   }
@@ -131,15 +132,13 @@ class LinkViewController extends PlatformViewController {
   static final Map<int, LinkViewController> _instances =
       <int, LinkViewController>{};
 
-  static html.Element _viewFactory(int viewId) {
+  static web.Element _viewFactory(int viewId) {
     return _instances[viewId]!._element;
   }
 
   static int? _hitTestedViewId;
 
-  static late StreamSubscription<html.MouseEvent> _clickSubscription;
-
-  static void _onGlobalClick(html.MouseEvent event) {
+  static void _onGlobalClick(web.MouseEvent event) {
     final int? viewId = getViewIdFromTarget(event);
     _instances[viewId]?._onDomClick(event);
     // After the DOM click event has been received, clean up the hit test state
@@ -164,17 +163,14 @@ class LinkViewController extends PlatformViewController {
   @override
   final int viewId;
 
-  late html.Element _element;
+  late web.Element _element;
 
   Future<void> _initialize() async {
-    _element = html.Element.tag('a');
+    _element = web.document.createElement('a');
     setProperty(_element, linkViewIdProperty, viewId);
-    _element.style
-      ..opacity = '0'
-      ..display = 'block'
-      ..width = '100%'
-      ..height = '100%'
-      ..cursor = 'unset';
+    // TODO: _element.style is not available
+    _element.setAttribute('style',
+        'opacity:0;display:block;width:100%;height:100%;cursor:unset;');
 
     // This is recommended on MDN:
     // - https://developer.mozilla.org/en-US/docs/Web/HTML/Element/a#attr-target
@@ -187,7 +183,7 @@ class LinkViewController extends PlatformViewController {
     await SystemChannels.platform_views.invokeMethod<void>('create', args);
   }
 
-  void _onDomClick(html.MouseEvent event) {
+  void _onDomClick(web.MouseEvent event) {
     final bool isHitTested = _hitTestedViewId == viewId;
     if (!isHitTested) {
       // There was no hit test registered for this click. This means the click
@@ -268,16 +264,13 @@ class LinkViewController extends PlatformViewController {
   Future<void> dispose() async {
     assert(_instances[viewId] == this);
     _instances.remove(viewId);
-    if (_instances.isEmpty) {
-      await _clickSubscription.cancel();
-    }
     await SystemChannels.platform_views.invokeMethod<void>('dispose', viewId);
   }
 }
 
 /// Finds the view id of the DOM element targeted by the [event].
-int? getViewIdFromTarget(html.Event event) {
-  final html.Element? linkElement = getLinkElementFromTarget(event);
+int? getViewIdFromTarget(web.Event event) {
+  final web.Element? linkElement = getLinkElementFromTarget(event);
   if (linkElement != null) {
     // TODO(stuartmorgan): Remove this ignore (and change to getProperty<int>)
     // once the templated version is available on stable. On master (2.8) this
@@ -291,15 +284,15 @@ int? getViewIdFromTarget(html.Event event) {
 /// Finds the targeted DOM element by the [event].
 ///
 /// It handles the case where the target element is inside a shadow DOM too.
-html.Element? getLinkElementFromTarget(html.Event event) {
-  final html.EventTarget? target = event.target;
-  if (target != null && target is html.Element) {
+web.Element? getLinkElementFromTarget(web.Event event) {
+  final web.EventTarget? target = event.target;
+  if (target != null && target is web.Element) {
     if (isLinkElement(target)) {
       return target;
     }
     if (target.shadowRoot != null) {
-      final html.Node? child = target.shadowRoot!.lastChild;
-      if (child != null && child is html.Element && isLinkElement(child)) {
+      final web.Node? child = target.shadowRoot!.lastChild;
+      if (child != null && child is web.Element && isLinkElement(child)) {
         return child;
       }
     }
@@ -309,7 +302,7 @@ html.Element? getLinkElementFromTarget(html.Event event) {
 
 /// Checks if the given [element] is a link that was created by
 /// [LinkViewController].
-bool isLinkElement(html.Element? element) {
+bool isLinkElement(web.Element? element) {
   return element != null &&
       element.tagName == 'A' &&
       hasProperty(element, linkViewIdProperty);
